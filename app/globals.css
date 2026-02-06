@@ -8,8 +8,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "SF Pro Text",
+    "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +24,302 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "SF Pro Text",
+    "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+}
+
+.glass-page {
+  min-height: 100vh;
+  background: radial-gradient(
+      circle at top left,
+      rgba(58, 86, 122, 0.35),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 20% 20%,
+      rgba(28, 44, 70, 0.6),
+      transparent 50%
+    ),
+    linear-gradient(160deg, #0b111b 0%, #0a0f1a 45%, #0f1626 100%);
+  color: #e7edf6;
+}
+
+.glass-header {
+  margin-bottom: 2rem;
+  max-width: 52rem;
+}
+
+.glass-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(178, 200, 232, 0.7);
+}
+
+.glass-header h1 {
+  font-size: clamp(2rem, 2.2vw + 1.4rem, 3.2rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  margin-top: 0.5rem;
+}
+
+.glass-header p {
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: rgba(203, 215, 233, 0.7);
+}
+
+.gallery-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.gallery-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  cursor: pointer;
+  appearance: none;
+  border-radius: 22px;
+  padding: 1.1rem;
+  background: rgba(22, 34, 54, 0.55);
+  border: 1px solid rgba(160, 190, 230, 0.15);
+  box-shadow: 0 18px 40px rgba(5, 12, 22, 0.35);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  height: 360px;
+  transition: border-color 220ms ease, box-shadow 220ms ease,
+    background 220ms ease;
+}
+
+.gallery-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+}
+
+.gallery-card:hover {
+  border-color: rgba(178, 208, 244, 0.4);
+  box-shadow: 0 24px 48px rgba(9, 18, 34, 0.45);
+  background: rgba(26, 40, 62, 0.6);
+}
+
+.gallery-card:hover::after {
+  opacity: 1;
+}
+
+.gallery-card-media {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  height: 180px;
+  background: rgba(6, 10, 18, 0.4);
+}
+
+.gallery-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.gallery-card-media img,
+.gallery-card-media div {
+  transition: filter 220ms ease;
+}
+
+.gallery-card-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: rgba(10, 16, 26, 0.55);
+  transition: opacity 220ms ease;
+}
+
+.gallery-card:hover .gallery-card-overlay {
+  opacity: 1;
+}
+
+.gallery-card:hover .gallery-card-image {
+  filter: brightness(0.85);
+}
+
+.gallery-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.gallery-card-title {
+  font-size: 1rem;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  color: rgba(233, 241, 252, 0.92);
+  font-weight: 600;
+}
+
+.gallery-card-context {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: rgba(178, 195, 218, 0.68);
+}
+
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: break-word;
+  word-break: normal;
+  padding-bottom: 0.05rem;
+}
+
+.clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: break-word;
+  word-break: normal;
+  padding-bottom: 0.05rem;
+}
+
+.gallery-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 12, 20, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  z-index: 50;
+}
+
+.gallery-modal {
+  width: min(900px, 100%);
+  max-height: 90vh;
+  border-radius: 26px;
+  padding: 1.8rem;
+  background: rgba(18, 28, 44, 0.78);
+  border: 1px solid rgba(175, 200, 234, 0.2);
+  box-shadow: 0 35px 80px rgba(5, 10, 20, 0.55);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  overflow: hidden;
+}
+
+.gallery-modal-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 10, 18, 0.35);
+  border-radius: 18px;
+  padding: 0.5rem;
+}
+
+.gallery-modal-image {
+  max-height: 65vh;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.gallery-modal-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 30vh;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  line-height: 1.6;
+}
+
+.gallery-modal-title {
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+  color: rgba(240, 246, 255, 0.98);
+  font-weight: 600;
+}
+
+.gallery-modal-context {
+  font-size: 0.95rem;
+  color: rgba(194, 210, 233, 0.75);
+}
+
+.gallery-fade-in {
+  animation: glassFadeIn 240ms ease;
+}
+
+.gallery-pagination {
+  margin-top: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.gallery-button {
+  appearance: none;
+  border: 1px solid rgba(160, 190, 230, 0.25);
+  background: rgba(22, 34, 54, 0.55);
+  color: rgba(232, 240, 252, 0.95);
+  border-radius: 999px;
+  padding: 0.55rem 1.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease,
+    box-shadow 180ms ease, opacity 180ms ease;
+  box-shadow: 0 10px 24px rgba(5, 12, 22, 0.25);
+}
+
+.gallery-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(178, 208, 244, 0.4);
+  box-shadow: 0 14px 28px rgba(5, 12, 22, 0.35);
+}
+
+.gallery-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.gallery-page-indicator {
+  font-size: 0.9rem;
+  color: rgba(196, 210, 233, 0.8);
+  letter-spacing: 0.03em;
+}
+
+@keyframes glassFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
