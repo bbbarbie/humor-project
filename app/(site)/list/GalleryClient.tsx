@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { ImageWithFallback } from "../components/ImageWithFallback";
+import { ImageWithFallback } from "../../components/ImageWithFallback";
 import type { ImageRow } from "./types";
 
 type GalleryClientProps = {

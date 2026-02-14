@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { GalleryClient } from "./GalleryClient";
 import type { ImageRow } from "./types";
+import Link from "next/link";
+import AccountPill from "@/app/components/AccountPill";
 
 const PAGE_SIZE = 24;
 
@@ -74,6 +76,14 @@ export default async function GalleryPage({ searchParams }: PageProps) {
 
   return (
     <div className="glass-page -mx-6 -my-8 px-6 py-8 md:-mx-10 md:px-10">
+      <nav className="mb-6 flex flex-wrap items-center gap-3">
+        <Link
+          href="/list"
+          className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+        >
+          Gallery
+        </Link>
+      </nav>
       <div className="glass-header">
         <p className="glass-eyebrow">Image Atlas</p>
         <h1>A playful atlas of images and their whispered stories.</h1>
@@ -95,6 +105,7 @@ export default async function GalleryPage({ searchParams }: PageProps) {
           pageSize={PAGE_SIZE}
         />
       )}
+      <AccountPill />
     </div>
   );
 }
