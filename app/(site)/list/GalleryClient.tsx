@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { ImageWithFallback } from "../../components/ImageWithFallback";
 import type { ImageRow } from "./types";
+import { InlineCaptionVoting } from "./InlineCaptionVoting";
 
 type GalleryClientProps = {
   initialRows: ImageRow[];
@@ -63,29 +64,38 @@ export function GalleryClient({
         const description = normalizeText(row.image_description);
         const context = normalizeText(row.additional_context);
         return (
-          <button
-            key={`${row.url ?? "row"}-${index}`}
-            type="button"
-            className="gallery-card gallery-fade-in text-left"
-            onClick={() => setSelected(row)}
+          <div
+            key={`${row.id ?? row.url ?? "row"}-${index}`}
+            className="gallery-card gallery-fade-in"
           >
-            <div className="gallery-card-media">
-              <ImageWithFallback
-                src={row.url}
-                alt={description ?? "Gallery image"}
-                className="gallery-card-image"
-              />
-              <div className="gallery-card-overlay" />
+            <button
+              type="button"
+              className="gallery-card-button text-left"
+              onClick={() => setSelected(row)}
+            >
+              <div className="gallery-card-media">
+                <ImageWithFallback
+                  src={row.url}
+                  alt={description ?? "Gallery image"}
+                  className="gallery-card-image"
+                />
+                <div className="gallery-card-overlay" />
+              </div>
+              <div className="gallery-card-text">
+                {description ? (
+                  <div className="gallery-card-title clamp-2">
+                    {description}
+                  </div>
+                ) : null}
+                {context ? (
+                  <div className="gallery-card-context clamp-3">{context}</div>
+                ) : null}
+              </div>
+            </button>
+            <div className="mt-4">
+              <InlineCaptionVoting imageId={row.id} />
             </div>
-            <div className="gallery-card-text">
-              {description ? (
-                <div className="gallery-card-title clamp-2">{description}</div>
-              ) : null}
-              {context ? (
-                <div className="gallery-card-context clamp-3">{context}</div>
-              ) : null}
-            </div>
-          </button>
+          </div>
         );
       }),
     [rows]
@@ -123,7 +133,7 @@ export function GalleryClient({
       const supabase = createClient(supabaseUrl, supabaseAnonKey);
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
-      const selectColumns = "url,image_description,additional_context";
+      const selectColumns = "id,url,image_description,additional_context";
 
       const baseQuery = () =>
         supabase
