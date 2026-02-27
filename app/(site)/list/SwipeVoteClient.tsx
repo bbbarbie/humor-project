@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   motion,
@@ -8,10 +9,12 @@ import {
   useTransform,
 } from "framer-motion";
 import { ImageWithFallback } from "@/app/components/ImageWithFallback";
+import { triggerVoteReaction } from "@/app/components/VoteReactions";
 
 type CaptionRow = {
   id: string;
   content: string | null;
+  userVote?: number | null;
 };
 
 type VoteImage = {
@@ -38,6 +41,7 @@ type VoteQueueItem = {
 
 const SWIPE_THRESHOLD = 120;
 const TOAST_DURATION_MS = 1200;
+const voteCache = new Map<string, number | null>();
 
 function normalizeText(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -69,6 +73,22 @@ function shuffleArray<T>(items: T[]) {
 
 function imageKey(imageId: string | number) {
   return String(imageId);
+}
+
+function removeVoteKey(votes: Record<string, number>, captionId: string) {
+  const nextVotes = { ...votes };
+  delete nextVotes[captionId];
+  return nextVotes;
+}
+
+function buildVotesFromQueue(queue: VoteQueueItem[]) {
+  return queue.reduce<Record<string, number>>((acc, item) => {
+    const voteValue = item.caption.userVote;
+    if (voteValue === 1 || voteValue === -1) {
+      acc[String(item.caption.id)] = voteValue;
+    }
+    return acc;
+  }, {});
 }
 
 function isSameImageId(
@@ -171,6 +191,9 @@ export function SwipeVoteClient({
   const [hasMore, setHasMore] = useState(
     initialSanitizedImages.length >= pageSize
   );
+  const [votes, setVotes] = useState<Record<string, number>>(
+    () => buildVotesFromQueue(initialQueue)
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -185,9 +208,11 @@ export function SwipeVoteClient({
   const leftHintOpacity = useTransform(x, [-120, -40], [1, 0]);
 
   const toastTimer = useRef<number | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const currentItem = queue[currentIndex];
   const currentCaption = currentItem?.caption;
+  const currentCaptionId = currentCaption ? String(currentCaption.id) : null;
   const captionText = currentCaption?.content ?? "";
 
   useEffect(() => {
@@ -210,6 +235,66 @@ export function SwipeVoteClient({
     controls.set({ x: 0, rotate: 0, opacity: 1 });
     x.set(0);
   }, [controls, x, currentCaption?.id]);
+
+  useEffect(() => {
+    if (!currentCaptionId) return;
+
+    const captionId = currentCaptionId;
+    const cachedVote = voteCache.get(captionId);
+    if (cachedVote !== undefined) {
+      setVotes((prev) => {
+        if (prev[captionId] === 1 || prev[captionId] === -1) return prev;
+        if (cachedVote === 1 || cachedVote === -1) {
+          return { ...prev, [captionId]: cachedVote };
+        }
+        return removeVoteKey(prev, captionId);
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const loadVote = async () => {
+      try {
+        const response = await fetch(
+          `/api/caption-vote?captionId=${encodeURIComponent(captionId)}`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          throw new Error("Unable to load vote.");
+        }
+        const payload = (await response.json()) as { voteValue?: number | null };
+        const voteValue = payload.voteValue === 1 || payload.voteValue === -1
+          ? payload.voteValue
+          : null;
+        voteCache.set(captionId, voteValue);
+        setVotes((prev) => {
+          if (prev[captionId] === 1 || prev[captionId] === -1) return prev;
+          if (voteValue === 1 || voteValue === -1) {
+            return { ...prev, [captionId]: voteValue };
+          }
+          return removeVoteKey(prev, captionId);
+        });
+      } catch (err) {
+        if (
+          controller.signal.aborted ||
+          (err &&
+            typeof err === "object" &&
+            "name" in err &&
+            err.name === "AbortError")
+        ) {
+          return;
+        }
+        voteCache.set(captionId, null);
+      }
+    };
+
+    void loadVote();
+
+    return () => {
+      controller.abort();
+    };
+  }, [currentCaptionId]);
 
   const fetchMore = useCallback(async (previousImageId?: string | number) => {
     if (isLoadingMore || !hasMore) return null;
@@ -234,6 +319,7 @@ export function SwipeVoteClient({
       const nextQueue = buildShuffledQueue(nextImages);
       const adjustedQueue = avoidAdjacentSameImage(nextQueue, previousImageId);
       setQueue((prev) => [...prev, ...adjustedQueue]);
+      setVotes((prev) => ({ ...prev, ...buildVotesFromQueue(adjustedQueue) }));
       setPage(nextPage);
       setHasMore(nextImages.length >= pageSize);
       setIsLoadingMore(false);
@@ -276,10 +362,23 @@ export function SwipeVoteClient({
   }, [advance, currentCaption, currentItem]);
 
   const handleVote = useCallback(
-    async (voteValue: 1 | -1) => {
+    async (
+      voteValue: 1 | -1,
+      sourceRect?: DOMRect | null,
+      options?: { triggerReaction?: boolean }
+    ) => {
       if (!currentCaption || isSaving) return;
+      const captionId = String(currentCaption.id);
+      const previousVote = votes[captionId];
+      if (options?.triggerReaction === true) {
+        triggerVoteReaction(
+          voteValue === 1 ? "up" : "down",
+          sourceRect ?? cardRef.current?.getBoundingClientRect()
+        );
+      }
       setIsSaving(true);
       setError(null);
+      setVotes((prev) => ({ ...prev, [captionId]: voteValue }));
 
       const direction = voteValue === 1 ? 1 : -1;
       await controls.start({
@@ -290,28 +389,43 @@ export function SwipeVoteClient({
       });
 
       try {
-        const response = await fetch("/api/caption-vote", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            captionId: currentCaption.id,
-            voteValue,
-          }),
-        });
-
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          const message =
-            payload?.error ||
-            payload?.message ||
-            "Unable to save vote.";
-          throw new Error(message);
+        let response: Response;
+        try {
+          response = await fetch("/api/caption-vote", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              captionId: currentCaption.id,
+              voteValue,
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+        } catch (err) {
+          if (
+            err &&
+            typeof err === "object" &&
+            "name" in err &&
+            err.name === "AbortError"
+          ) {
+            console.warn("[vote] aborted - ignore");
+            return;
+          }
+          throw err;
         }
 
         setToast("Saved ✓");
+        voteCache.set(captionId, voteValue);
         await new Promise((resolve) => setTimeout(resolve, 260));
         await advance();
       } catch (err) {
+        setVotes((prev) => {
+          if (previousVote === 1 || previousVote === -1) {
+            return { ...prev, [captionId]: previousVote };
+          }
+          return removeVoteKey(prev, captionId);
+        });
         setError(err instanceof Error ? err.message : "Unable to save vote.");
       } finally {
         setIsSaving(false);
@@ -319,16 +433,20 @@ export function SwipeVoteClient({
         x.set(0);
       }
     },
-    [advance, controls, currentCaption, isSaving, x]
+    [advance, controls, currentCaption, isSaving, votes, x]
   );
 
   const handleDragEnd = useCallback(
     async (_: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number } }) => {
       if (isSaving) return;
       if (info.offset.x > SWIPE_THRESHOLD) {
-        await handleVote(1);
+        await handleVote(1, cardRef.current?.getBoundingClientRect(), {
+          triggerReaction: true,
+        });
       } else if (info.offset.x < -SWIPE_THRESHOLD) {
-        await handleVote(-1);
+        await handleVote(-1, cardRef.current?.getBoundingClientRect(), {
+          triggerReaction: true,
+        });
       } else {
         controls.start({ x: 0, rotate: 0, transition: { duration: 0.2 } });
       }
@@ -338,6 +456,7 @@ export function SwipeVoteClient({
 
   const captionCount = queue.length;
   const captionPosition = captionCount > 0 ? currentIndex + 1 : 0;
+  const currentVote = currentCaption ? votes[String(currentCaption.id)] : null;
 
   const cardKey = useMemo(
     () => `${currentItem?.imageId ?? "none"}-${currentCaption?.id ?? "empty"}`,
@@ -362,6 +481,7 @@ export function SwipeVoteClient({
       <div className="vote-card-wrap w-full max-w-3xl !gap-2">
         <motion.div
           key={cardKey}
+          ref={cardRef}
           className="vote-card !max-h-[62vh] sm:!max-h-[64vh] lg:!max-h-[68vh] !gap-3 !p-4 md:!p-5"
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
@@ -401,22 +521,43 @@ export function SwipeVoteClient({
           </motion.div>
         </motion.div>
 
+        <div className="flex justify-center">
+          <Link
+            href="/upload"
+            className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/20 sm:text-sm"
+          >
+            Upload your own image
+          </Link>
+        </div>
+
         <div className="vote-actions !gap-2">
           <button
             type="button"
-            className="vote-action-button vote-action-down !py-2"
-            onClick={() => void handleVote(-1)}
+            className={`vote-action-button vote-action-down !py-2 ${
+              currentVote === -1 ? "!border-rose-200 !bg-rose-200/25 !text-rose-50" : ""
+            }`}
+            onClick={(event) =>
+              void handleVote(-1, event.currentTarget.getBoundingClientRect(), {
+                triggerReaction: true,
+              })
+            }
             disabled={isSaving}
           >
-            Downvote
+            👎 Downvote
           </button>
           <button
             type="button"
-            className="vote-action-button vote-action-up !py-2"
-            onClick={() => void handleVote(1)}
+            className={`vote-action-button vote-action-up !py-2 ${
+              currentVote === 1 ? "!border-emerald-200 !bg-emerald-200/25 !text-emerald-50" : ""
+            }`}
+            onClick={(event) =>
+              void handleVote(1, event.currentTarget.getBoundingClientRect(), {
+                triggerReaction: true,
+              })
+            }
             disabled={isSaving}
           >
-            Upvote
+            👍 Upvote
           </button>
         </div>
 

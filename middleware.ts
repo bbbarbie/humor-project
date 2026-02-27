@@ -6,7 +6,7 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.redirect(new URL("/protected", request.url));
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   const response = NextResponse.next();
@@ -27,12 +27,12 @@ export async function middleware(request: NextRequest) {
   console.log("[middleware] getUser user:", data.user ? data.user.email ?? "no-email" : null);
 
   if (!data.user) {
-    return NextResponse.redirect(new URL("/protected", request.url));
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ["/list/:path*"],
+  matcher: ["/list/:path*", "/upload/:path*"],
 };

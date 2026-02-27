@@ -6,6 +6,17 @@ import { SwipeVoteClient } from "./SwipeVoteClient";
 
 const PAGE_SIZE = 12;
 
+type PageProps = {
+  searchParams?: Promise<{
+    page?: string;
+  }>;
+};
+
+type FetchResult = {
+  rows: VoteImageRow[];
+  error: string | null;
+};
+
 type CaptionRow = {
   id: string;
   content: string | null;
@@ -17,17 +28,6 @@ type VoteImageRow = {
   image_description: string | null;
   additional_context: string | null;
   captions: CaptionRow[];
-};
-
-type PageProps = {
-  searchParams?: Promise<{
-    page?: string;
-  }>;
-};
-
-type FetchResult = {
-  rows: VoteImageRow[];
-  error: string | null;
 };
 
 function hasCaptionContent(value: string | null) {
@@ -64,31 +64,24 @@ async function fetchImages(page: number): Promise<FetchResult> {
     };
   }
 
-  let response = await supabase
-    .from("images")
-    .select(selectColumns)
-    .not("captions.content", "is", null)
-    .neq("captions.content", "")
-    .range(from, to)
-    .order("created_datetime_utc", { ascending: false });
-
-  if (response.error?.message?.includes("created_datetime_utc")) {
-    response = await supabase
-      .from("images")
-      .select(selectColumns)
-      .not("captions.content", "is", null)
-      .neq("captions.content", "")
-      .range(from, to)
-      .order("id", { ascending: false });
-  }
-
-  if (response.error?.message?.includes("id")) {
-    response = await supabase
+  const baseQuery = () =>
+    supabase
       .from("images")
       .select(selectColumns)
       .not("captions.content", "is", null)
       .neq("captions.content", "")
       .range(from, to);
+
+  let response = await baseQuery().order("created_datetime_utc", {
+    ascending: false,
+  });
+
+  if (response.error?.message?.includes("created_datetime_utc")) {
+    response = await baseQuery().order("id", { ascending: false });
+  }
+
+  if (response.error?.message?.includes("id")) {
+    response = await baseQuery();
   }
 
   if (response.error) {
@@ -96,10 +89,8 @@ async function fetchImages(page: number): Promise<FetchResult> {
   }
 
   const rows = (response.data ?? []) as VoteImageRow[];
-  const filteredRows = filterImages(rows);
-
   return {
-    rows: filteredRows,
+    rows: filterImages(rows),
     error: null,
   };
 }
@@ -119,21 +110,24 @@ export default async function GalleryPage({ searchParams }: PageProps) {
   return (
     <div className="glass-page vote-page -mx-6 -my-6 px-5 py-2 md:-mx-10 md:px-8 md:py-3">
       <nav className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center justify-center rounded-full border border-white/30 bg-white/20 px-3 py-1.5 text-xs font-semibold text-white sm:text-sm">
+          Gallery
+        </span>
         <Link
-          href="/list"
+          href="/upload"
           className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20 sm:text-sm"
         >
-          Gallery
+          Upload
         </Link>
       </nav>
       <div className="glass-header mb-2 max-w-3xl">
         <p className="glass-eyebrow">Caption Voting</p>
         <h1 className="mt-1 text-[clamp(1.35rem,1.2vw+1rem,2rem)] leading-tight">
-          Swipe through captions and vote in a single flow.
+          Swipe through captions one at a time.
         </h1>
         <p className="mt-1 text-sm leading-snug sm:text-[0.95rem]">
-          Drag right to upvote, left to downvote. Each swipe saves your vote and
-          moves you to the next caption.
+          Use swipe gestures or vote buttons to quickly submit 👍 and 👎
+          without leaving the card.
         </p>
       </div>
 

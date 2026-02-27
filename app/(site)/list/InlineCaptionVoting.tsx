@@ -6,7 +6,7 @@ import { CaptionVotingClient } from "@/app/components/CaptionVotingClient";
 type CaptionRow = {
   id: string;
   content: string | null;
-  myVoteValue?: number;
+  userVote: number | null;
 };
 
 type CaptionPayload = {
@@ -98,8 +98,8 @@ export function InlineCaptionVoting({ imageId }: InlineCaptionVotingProps) {
   }
 
   const initialVotes = captions.reduce<Record<string, number>>((acc, caption) => {
-    if (typeof caption.myVoteValue === "number") {
-      acc[caption.id] = caption.myVoteValue;
+    if (caption.userVote === 1 || caption.userVote === -1) {
+      acc[caption.id] = caption.userVote;
     }
     return acc;
   }, {});

@@ -4,6 +4,47 @@ import { resolveProfileIdByUserEmail } from "@/lib/supabase/profile";
 
 const VALID_VOTES = new Set([1, -1]);
 
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const captionId = searchParams.get("captionId");
+
+  if (!captionId) {
+    return NextResponse.json({ error: "captionId is required." }, { status: 400 });
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !userData.user) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  const profileLookup = await resolveProfileIdByUserEmail(supabase, userData.user);
+  if (!profileLookup.profileId) {
+    return NextResponse.json(
+      { error: profileLookup.error },
+      { status: profileLookup.status }
+    );
+  }
+
+  const { data: voteRow, error: voteError } = await supabase
+    .from("caption_votes")
+    .select("vote_value")
+    .eq("profile_id", profileLookup.profileId)
+    .eq("caption_id", captionId)
+    .limit(1)
+    .maybeSingle();
+
+  if (voteError) {
+    return NextResponse.json(
+      { error: voteError.message ?? "Unable to load vote." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ voteValue: voteRow?.vote_value ?? null });
+}
+
 export async function POST(request: Request) {
   let payload: { captionId?: string; voteValue?: number } | null = null;
 

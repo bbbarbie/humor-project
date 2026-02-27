@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { triggerVoteReaction } from "@/app/components/VoteReactions";
 
 type CaptionRow = {
   id: string | number;
@@ -54,19 +55,25 @@ export function CaptionVotingClient({
     setSubmitted((prev) => ({ ...prev, [captionId]: false }));
 
     try {
-      const response = await fetch("/api/caption-vote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ captionId, voteValue: vote }),
-      });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        const message =
-          payload?.error ||
-          payload?.message ||
-          "Unable to save vote. Please try again.";
-        throw new Error(message);
+      let response: Response;
+      try {
+        response = await fetch("/api/caption-vote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ captionId, voteValue: vote }),
+        });
+        if (!response.ok) throw new Error(await response.text());
+      } catch (err) {
+        if (
+          err &&
+          typeof err === "object" &&
+          "name" in err &&
+          err.name === "AbortError"
+        ) {
+          console.warn("[vote] aborted - ignore");
+          return;
+        }
+        throw err;
       }
 
       const payload = (await response.json().catch(() => null)) as
@@ -118,7 +125,10 @@ export function CaptionVotingClient({
                     ? "border-emerald-300/70 bg-emerald-400/20 text-emerald-100"
                     : "border-white/20 bg-white/5 text-white/70 hover:border-white/40"
                 }`}
-                onClick={() => handleVote(caption.key, 1)}
+                onClick={(event) => {
+                  triggerVoteReaction("up", event.currentTarget.getBoundingClientRect());
+                  void handleVote(caption.key, 1);
+                }}
                 disabled={isSaving}
                 aria-pressed={isUpvoted}
               >
@@ -131,7 +141,10 @@ export function CaptionVotingClient({
                     ? "border-rose-300/70 bg-rose-400/20 text-rose-100"
                     : "border-white/20 bg-white/5 text-white/70 hover:border-white/40"
                 }`}
-                onClick={() => handleVote(caption.key, -1)}
+                onClick={(event) => {
+                  triggerVoteReaction("down", event.currentTarget.getBoundingClientRect());
+                  void handleVote(caption.key, -1);
+                }}
                 disabled={isSaving}
                 aria-pressed={isDownvoted}
               >

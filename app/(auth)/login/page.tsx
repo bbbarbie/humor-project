@@ -1,18 +1,22 @@
 "use client";
 
-import { createBrowserClient } from "@supabase/ssr";
-import { useState } from "react";
+import { type MouseEvent, useState } from "react";
 import FuturisticBackground from "@/app/components/FuturisticBackground";
+import { getBrowserSupabase } from "@/lib/supabase/browser";
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    console.log("clicked login");
     setError(null);
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    console.log("[login] supabaseUrl exists:", Boolean(supabaseUrl));
+    console.log("[login] supabaseAnonKey exists:", Boolean(supabaseAnonKey));
 
     if (!supabaseUrl || !supabaseAnonKey) {
       setError("Missing Supabase environment variables.");
@@ -20,24 +24,31 @@ export default function LoginPage() {
     }
 
     setLoading(true);
+    const supabase = getBrowserSupabase();
 
-    const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        flowType: "pkce",
-      },
-    });
-    const { error: signInError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      console.log("[login] redirectTo:", redirectTo);
+      console.log("[login] calling signInWithOAuth");
 
-    if (signInError) {
-      setError(signInError.message);
+      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
+      console.log("[login] signInWithOAuth result:", { data, error: signInError });
+
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+      }
+    } catch (caughtError) {
+      const message =
+        caughtError instanceof Error ? caughtError.message : "Sign in failed.";
+      setError(message);
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
