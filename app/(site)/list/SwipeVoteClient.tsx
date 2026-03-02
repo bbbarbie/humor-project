@@ -29,6 +29,7 @@ type SwipeVoteClientProps = {
   initialImages: VoteImage[];
   initialPage: number;
   pageSize: number;
+  userIdentifier: string;
 };
 
 type VoteQueueItem = {
@@ -177,6 +178,7 @@ export function SwipeVoteClient({
   initialImages,
   initialPage,
   pageSize,
+  userIdentifier,
 }: SwipeVoteClientProps) {
   const initialSanitizedImages = useMemo(
     () => sanitizeImages(initialImages),
@@ -200,6 +202,10 @@ export function SwipeVoteClient({
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isComplete, setIsComplete] = useState(false);
+  const progressStorageKey = useMemo(
+    () => `swipe-vote-progress:${userIdentifier}`,
+    [userIdentifier]
+  );
 
   const controls = useAnimation();
   const x = useMotionValue(0);
@@ -214,6 +220,28 @@ export function SwipeVoteClient({
   const currentCaption = currentItem?.caption;
   const currentCaptionId = currentCaption ? String(currentCaption.id) : null;
   const captionText = currentCaption?.content ?? "";
+
+  const writeProgressIndex = useCallback(
+    (nextIndex: number) => {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem(progressStorageKey, String(nextIndex));
+    },
+    [progressStorageKey]
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const rawSavedIndex = window.localStorage.getItem(progressStorageKey);
+    if (rawSavedIndex == null) return;
+    const parsedIndex = Number.parseInt(rawSavedIndex, 10);
+    if (!Number.isFinite(parsedIndex)) return;
+    if (queue.length <= 0) {
+      setCurrentIndex(0);
+      return;
+    }
+    const clampedIndex = Math.min(Math.max(parsedIndex, 0), queue.length - 1);
+    setCurrentIndex(clampedIndex);
+  }, [progressStorageKey, queue.length]);
 
   useEffect(() => {
     if (toastTimer.current) {
@@ -334,25 +362,36 @@ export function SwipeVoteClient({
     }
   }, [hasMore, isLoadingMore, page, pageSize]);
 
-  const advance = useCallback(async () => {
+  const advance = useCallback(async (persistProgress = false) => {
     if (!currentItem) return;
 
     if (currentIndex + 1 < queue.length) {
-      setCurrentIndex((prev) => prev + 1);
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      if (persistProgress) {
+        writeProgressIndex(nextIndex);
+      }
       return;
     }
 
     if (hasMore) {
       const nextQueue = await fetchMore(currentItem.imageId);
       if (nextQueue && nextQueue.length > 0) {
-        setCurrentIndex((prev) => prev + 1);
+        const nextIndex = currentIndex + 1;
+        setCurrentIndex(nextIndex);
+        if (persistProgress) {
+          writeProgressIndex(nextIndex);
+        }
         return;
       }
     }
 
     setIsComplete(true);
     setCurrentIndex(queue.length);
-  }, [currentIndex, currentItem, fetchMore, hasMore, queue.length]);
+    if (persistProgress) {
+      writeProgressIndex(queue.length);
+    }
+  }, [currentIndex, currentItem, fetchMore, hasMore, queue.length, writeProgressIndex]);
 
   useEffect(() => {
     if (!currentItem) return;
@@ -418,7 +457,7 @@ export function SwipeVoteClient({
         setToast("Saved ✓");
         voteCache.set(captionId, voteValue);
         await new Promise((resolve) => setTimeout(resolve, 260));
-        await advance();
+        await advance(true);
       } catch (err) {
         setVotes((prev) => {
           if (previousVote === 1 || previousVote === -1) {
@@ -435,6 +474,16 @@ export function SwipeVoteClient({
     },
     [advance, controls, currentCaption, isSaving, votes, x]
   );
+
+  const handleResetProgress = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(progressStorageKey);
+    }
+    setIsComplete(false);
+    setCurrentIndex(0);
+    controls.set({ x: 0, rotate: 0, opacity: 1 });
+    x.set(0);
+  }, [controls, progressStorageKey, x]);
 
   const handleDragEnd = useCallback(
     async (_: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number } }) => {
@@ -558,6 +607,15 @@ export function SwipeVoteClient({
             disabled={isSaving}
           >
             👍 Upvote
+          </button>
+        </div>
+        <div className="flex justify-center">
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[0.72rem] font-semibold text-white/80 transition hover:bg-white/20 hover:text-white sm:text-xs"
+            onClick={handleResetProgress}
+          >
+            Reset progress
           </button>
         </div>
 

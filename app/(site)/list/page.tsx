@@ -101,6 +101,8 @@ export default async function GalleryPage({ searchParams }: PageProps) {
   if (!sessionData.session) {
     redirect("/login");
   }
+  const user = sessionData.session.user;
+  const userIdentifier = user.email?.trim() || user.id;
 
   const sp = await searchParams;
   const pageParam = Number(sp?.page ?? "1");
@@ -140,6 +142,7 @@ export default async function GalleryPage({ searchParams }: PageProps) {
           initialImages={rows}
           initialPage={page}
           pageSize={PAGE_SIZE}
+          userIdentifier={userIdentifier}
         />
       )}
       <AccountPill />
