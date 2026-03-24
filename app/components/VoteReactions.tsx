@@ -65,9 +65,15 @@ export function triggerVoteReaction(type: VoteReactionType, buttonRect?: DOMRect
 
 export function ReactionOverlay() {
   const [items, setItems] = useState<OverlayItem[]>([]);
+  const [mounted, setMounted] = useState(false);
   const timers = useRef<Map<string, number>>(new Map());
   const idCounter = useRef(0);
   const extraTimers = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- defer portal rendering until after mount to keep hydration deterministic
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const activeTimers = timers.current;
@@ -218,9 +224,8 @@ export function ReactionOverlay() {
     };
   }, [triggerReaction]);
 
-  const canUseDOM = typeof document !== "undefined";
   const overlay = useMemo(() => {
-    if (!canUseDOM) return null;
+    if (!mounted) return null;
     return createPortal(
       <div className="vote-reaction-overlay" aria-hidden="true">
         <AnimatePresence>
@@ -295,7 +300,7 @@ export function ReactionOverlay() {
       </div>,
       document.body
     );
-  }, [canUseDOM, items]);
+  }, [mounted, items]);
 
   return overlay;
 }

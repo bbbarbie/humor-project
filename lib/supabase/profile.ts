@@ -8,6 +8,7 @@ type SupabaseErrorLike = {
 const EMAIL_COLUMN_MISSING = /column .*email.* does not exist/i;
 const RELATION_MISSING = /relation .* does not exist/i;
 const PERMISSION_DENIED = /permission denied/i;
+const DUPLICATE_KEY = /duplicate key/i;
 
 type ProfileLookupResult = {
   profileId: string | null;
@@ -48,49 +49,30 @@ export async function resolveProfileIdByUserEmail(
   supabase: SupabaseClient,
   user: User
 ): Promise<ProfileLookupResult> {
-  if (!user.email) {
-    return {
-      profileId: null,
-      error: "No email found for this user.",
-      status: 400,
-    };
+  const profileById = await findProfileIdById(supabase, user.id);
+  if (profileById.error) {
+    return profileById.error;
   }
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("email", user.email)
-    .maybeSingle();
-
-  if (error) {
-    if (
-      isMissingEmailColumn(error) ||
-      isMissingProfilesRelation(error) ||
-      isPermissionDenied(error)
-    ) {
-      return {
-        profileId: null,
-        error: "Unable to access profiles for this user.",
-        status: 500,
-      };
-    }
-
-    return {
-      profileId: null,
-      error: error.message ?? "Failed to resolve profile.",
-      status: 500,
-    };
+  if (profileById.profileId) {
+    return { profileId: profileById.profileId, error: null, status: 200 };
   }
 
-  if (!data?.id) {
-    return {
-      profileId: null,
-      error: "No profile found for this user.",
-      status: 404,
-    };
+  const profileByEmail = await findProfileIdByEmailWithStatus(supabase, user);
+  if (profileByEmail.error) {
+    return profileByEmail.error;
   }
 
-  return { profileId: data.id, error: null, status: 200 };
+  if (profileByEmail.profileId) {
+    return { profileId: profileByEmail.profileId, error: null, status: 200 };
+  }
+
+  const createResult = await createProfileForUser(supabase, user);
+  if (createResult.error) {
+    return createResult.error;
+  }
+
+  return { profileId: createResult.profileId, error: null, status: 200 };
 }
 
 export function isMissingProfileRow(error: unknown): boolean {
@@ -123,4 +105,171 @@ function isPermissionDenied(error: SupabaseErrorLike): boolean {
     return true;
   }
   return Boolean(error.message && PERMISSION_DENIED.test(error.message));
+}
+
+async function findProfileIdById(
+  supabase: SupabaseClient,
+  profileId: string
+): Promise<
+  | { profileId: string | null; error: null }
+  | { profileId: null; error: ProfileLookupResult }
+> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingProfilesRelation(error) || isPermissionDenied(error)) {
+      return {
+        profileId: null,
+        error: {
+          profileId: null,
+          error: "Unable to access profiles for this user.",
+          status: 500,
+        },
+      };
+    }
+
+    return {
+      profileId: null,
+      error: {
+        profileId: null,
+        error: error.message ?? "Failed to resolve profile.",
+        status: 500,
+      },
+    };
+  }
+
+  return { profileId: data?.id ?? null, error: null };
+}
+
+async function findProfileIdByEmailWithStatus(
+  supabase: SupabaseClient,
+  user: User
+): Promise<
+  | { profileId: string | null; error: null }
+  | { profileId: null; error: ProfileLookupResult }
+> {
+  if (!user.email) {
+    return { profileId: null, error: null };
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", user.email)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingEmailColumn(error)) {
+      return { profileId: null, error: null };
+    }
+
+    if (isMissingProfilesRelation(error) || isPermissionDenied(error)) {
+      return {
+        profileId: null,
+        error: {
+          profileId: null,
+          error: "Unable to access profiles for this user.",
+          status: 500,
+        },
+      };
+    }
+
+    return {
+      profileId: null,
+      error: {
+        profileId: null,
+        error: error.message ?? "Failed to resolve profile.",
+        status: 500,
+      },
+    };
+  }
+
+  return { profileId: data?.id ?? null, error: null };
+}
+
+async function createProfileForUser(
+  supabase: SupabaseClient,
+  user: User
+): Promise<
+  | { profileId: string; error: null }
+  | { profileId: null; error: ProfileLookupResult }
+> {
+  const baseInsertPayload = { id: user.id };
+  const insertPayload =
+    user.email &&
+    (await canWriteProfileEmail(supabase, user.id))
+      ? { ...baseInsertPayload, email: user.email }
+      : baseInsertPayload;
+
+  const { error } = await supabase.from("profiles").insert(insertPayload);
+
+  if (error) {
+    if (isDuplicateKey(error)) {
+      const existingProfile = await findProfileIdById(supabase, user.id);
+      if (existingProfile.error) {
+        return { profileId: null, error: existingProfile.error };
+      }
+      if (existingProfile.profileId) {
+        return { profileId: existingProfile.profileId, error: null };
+      }
+    }
+
+    if (isMissingProfilesRelation(error) || isPermissionDenied(error)) {
+      return {
+        profileId: null,
+        error: {
+          profileId: null,
+          error: "Unable to create a profile for this user.",
+          status: 500,
+        },
+      };
+    }
+
+    return {
+      profileId: null,
+      error: {
+        profileId: null,
+        error: error.message ?? "Failed to create profile.",
+        status: 500,
+      },
+    };
+  }
+
+  return { profileId: user.id, error: null };
+}
+
+async function canWriteProfileEmail(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("profiles")
+    .select("id,email")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!error) {
+    return true;
+  }
+
+  if (isMissingEmailColumn(error)) {
+    return false;
+  }
+
+  if (isMissingProfilesRelation(error) || isPermissionDenied(error)) {
+    return false;
+  }
+
+  return true;
+}
+
+function isDuplicateKey(error: SupabaseErrorLike): boolean {
+  if (error.code === "23505") {
+    return true;
+  }
+  return Boolean(error.message && DUPLICATE_KEY.test(error.message));
 }

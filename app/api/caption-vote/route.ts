@@ -27,6 +27,8 @@ export async function GET(request: Request) {
     );
   }
 
+  console.info("caption-vote GET using profile_id", profileLookup.profileId);
+
   const { data: voteRow, error: voteError } = await supabase
     .from("caption_votes")
     .select("vote_value")
@@ -79,10 +81,16 @@ export async function POST(request: Request) {
     );
   }
 
+  const profileId = profileLookup.profileId;
+  console.info("caption-vote POST using profile_id", profileId);
+
   const { data: updatedRow, error: updateError } = await supabase
     .from("caption_votes")
-    .update({ vote_value: voteValue })
-    .eq("profile_id", profileLookup.profileId)
+    .update({
+      vote_value: voteValue,
+      modified_by_user_id: profileId,
+    })
+    .eq("profile_id", profileId)
     .eq("caption_id", captionId)
     .select("caption_id")
     .maybeSingle();
@@ -96,30 +104,23 @@ export async function POST(request: Request) {
 
   if (!updatedRow) {
     const insertPayload = {
-      profile_id: profileLookup.profileId,
+      profile_id: profileId,
       caption_id: captionId,
       vote_value: voteValue,
+      created_by_user_id: profileId,
+      modified_by_user_id: profileId,
     };
 
-    let insertError = (
-      await supabase.from("caption_votes").insert(insertPayload)
-    ).error;
-
-    if (
-      insertError &&
-      typeof insertError.message === "string" &&
-      insertError.message.includes("created_datetime_utc")
-    ) {
-      const nowIso = new Date().toISOString();
-      insertError = (
-        await supabase.from("caption_votes").insert({
-          ...insertPayload,
-          created_datetime_utc: nowIso,
-        })
-      ).error;
-    }
+    const { error: insertError } = await supabase
+      .from("caption_votes")
+      .insert(insertPayload);
 
     if (insertError) {
+      console.error("caption-vote insert failed", {
+        profile_id: profileId,
+        caption_id: captionId,
+        error: insertError,
+      });
       return NextResponse.json(
         { error: insertError.message ?? "Vote failed." },
         { status: 500 }
