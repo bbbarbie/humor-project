@@ -42,6 +42,7 @@ type VoteQueueItem = {
 
 const SWIPE_THRESHOLD = 120;
 const TOAST_DURATION_MS = 1200;
+const ONBOARDING_STORAGE_KEY = "swipe-vote-onboarding-dismissed";
 const voteCache = new Map<string, number | null>();
 
 function normalizeText(value: string | null | undefined) {
@@ -202,6 +203,7 @@ export function SwipeVoteClient({
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isComplete, setIsComplete] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const progressStorageKey = useMemo(
     () => `swipe-vote-progress:${userIdentifier}`,
     [userIdentifier]
@@ -228,6 +230,20 @@ export function SwipeVoteClient({
     },
     [progressStorageKey]
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setShowOnboarding(
+      window.localStorage.getItem(ONBOARDING_STORAGE_KEY) !== "true"
+    );
+  }, []);
+
+  const dismissOnboarding = useCallback(() => {
+    setShowOnboarding(false);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -407,6 +423,7 @@ export function SwipeVoteClient({
       options?: { triggerReaction?: boolean }
     ) => {
       if (!currentCaption || isSaving) return;
+      dismissOnboarding();
       const captionId = String(currentCaption.id);
       const previousVote = votes[captionId];
       if (options?.triggerReaction === true) {
@@ -472,7 +489,7 @@ export function SwipeVoteClient({
         x.set(0);
       }
     },
-    [advance, controls, currentCaption, isSaving, votes, x]
+    [advance, controls, currentCaption, dismissOnboarding, isSaving, votes, x]
   );
 
   const handleResetProgress = useCallback(() => {
@@ -540,12 +557,37 @@ export function SwipeVoteClient({
           animate={controls}
         >
           {toast ? <div className="vote-toast">{toast}</div> : null}
+          {showOnboarding ? (
+            <div className="vote-onboarding" aria-live="polite">
+              <div>
+                <p className="vote-onboarding-title">
+                  <span>Swipe</span> left or right on the card to <span>vote</span>
+                </p>
+                <p className="vote-onboarding-copy">
+                  Left is downvote. Right is upvote.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="vote-onboarding-button"
+                onClick={dismissOnboarding}
+              >
+                Got it
+              </button>
+            </div>
+          ) : null}
           <div className="vote-meta !text-[0.72rem] sm:!text-xs">
             <span>
               Caption {captionPosition} of {captionCount}
             </span>
             <span className="vote-meta-divider" />
+            <span>Drag card left or right</span>
+          </div>
+
+          <div className="vote-card-swipe-cues" aria-hidden="true">
+            <span>Left: Downvote</span>
             <span>Swipe to vote</span>
+            <span>Right: Upvote</span>
           </div>
 
           <div className="vote-media min-h-0 flex-1 !h-auto !max-h-[38vh] !p-2 sm:!max-h-[40vh] lg:!max-h-[44vh]">

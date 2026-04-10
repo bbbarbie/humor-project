@@ -59,7 +59,12 @@ export default function LoginPage() {
           <div className="glass-header">
             <p className="glass-eyebrow">Welcome Back</p>
             <h1>Sign in to continue.</h1>
-            <p>Use Google to access the protected area.</p>
+            <p>Use your Columbia email to sign in with Google.</p>
+          </div>
+
+          <div className="login-email-guidance">
+            <span aria-hidden="true">@</span>
+            <p>Choose your Columbia school account before continuing.</p>
           </div>
 
           <button
