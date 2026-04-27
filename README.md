@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Caption Creation and Rating App
 
-## Getting Started
+A swipe-to-vote humor caption app built with Next.js.
 
-First, run the development server:
+This project is part of a larger humor caption workflow and focuses on the user-facing side of caption evaluation. Users can view captions, vote on them, and generate the rating data later used in the admin dashboard.
+
+## Overview
+
+The goal of this app is to make caption evaluation fast, intuitive, and engaging.
+
+Users can:
+- view generated captions
+- vote on captions
+- help identify which captions perform best
+
+The app is designed to support quick feedback collection and connect directly to the larger humor flavor experimentation workflow.
+
+## Inspiration
+
+This app was partly inspired by a friend’s dating app experience. I liked how swipe-based interactions make preference feel immediate, low-friction, and engaging, so I adapted that idea into a swipe-to-vote caption rating flow. Instead of swiping on people, users swipe on humor, which makes caption evaluation feel faster, more natural, and more fun.
+
+## Features
+
+- Display captions for user review
+- Swipe or vote on captions
+- Store vote activity for later analysis
+- Support ongoing caption testing and evaluation
+- Connect to the broader humor flavor workflow
+
+## Tech Stack
+
+- Next.js
+- React
+- Supabase
+- Vercel
+
+## Running Locally
+
+First, install dependencies and start the development server:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
